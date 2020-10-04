@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="hello_cruel_world">Hello cruel world! </string>
+    <string name="mail_to_developer">Mail to developer</string>
+    <string name="tap_on_checkboxes_to_select_items">Tap on checkboxes to select items.</string>
+    <string name="btn_search">Button Search</string> 
+    <string name="serach_in__design_ideas">Search in Design Ideas</string> 
+    <string-array name="search_title"> 
+		<item>What can I search for?</item> 
+		<item>Do I have to have an account to search and view information?</item> 
+    <item>How do I search for products shown in a design?</item> 
+    <item>Items 3</item> 
+  </string-array>
+  <plurals name="throwback_items">
+    <item quantity="one">Click to find more about this entry for %2$s</item>
+    <item quantity="other2 between">Other 2 between</item>
+    <item quantity="other">Click to find more about %1$d entries for %2$s</item>
+    <item quantity="other2">Other 2</item>
+    <item quantity="string_new_item">@string/new_item</item>
+  </plurals>
+
+  <string name="loading_data_not_trans" translatable="false">Loading data not trans</string>
+  <!--Extra sapce at the end-->
+  <string name="unlock_at_discounted">Unlock all the advanced features at discounted price of 33%            </string>
+
+  <string name="new_item">New item betwwen</string>
+
+  <string name="new_item_t">@string/new_item</string>
+
+  <!--Escaping-->
+  <string name="rating_dialog_suggestions">Suggest us what went wrong and we\'ll work on it!</string>
+
+  <string name="public_link_share_message">Check out what I had written into my Journal. %1$s  \n\nGet your own personal Journal for free. Download Snaps app now.  %2$s </string>
+
+  <string name="loading_data" translatable="false">Loading data</string>
+</resources>
