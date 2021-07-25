@@ -182,17 +182,17 @@ flatten = lambda l: [item for sublist in l for item in sublist]
 def main(argv):
     global debug
     parser = argparse.ArgumentParser(
-        description='This is a python module to verify the same number of positional arguments and missing translation')
+        description='This is a python module to verify the same number of positional arguments, missing translation, warning characters(e.g., &, ..., -, --) and wrong xml escaping')
     parser.add_argument('-o', action='store', default='',
-                        help='Specify the absolute output folder path')
+                        help='specify the absolute output folder path')
     parser.add_argument('-i', action='store',
-                        help='Specify the absolute input file path')
+                        help='specify the absolute input file path')
     parser.add_argument('-lang', action='store', default='',
-                        help='Specify the comma seperated langauges')
+                        help='specify the comma seperated langauges')
     parser.add_argument('-p', action='store', dest='pool', default=5,
-                        type=int, help='Number of process pool to use, default = 5')
+                        type=int, help='set the number of process pool to use, default = 5')
     parser.add_argument('-v', action='store_true', dest='debug',
-                        default=False, help='Enable the debug logs')
+                        default=False, help='enable the debug logs')
 
     args = parser.parse_args(argv)
     debug = args.debug

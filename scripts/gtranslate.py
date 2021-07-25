@@ -308,7 +308,7 @@ def translate_text_from_google_web(to_translate, to_language, language="auto", n
 
 def getIso639LangCode(android_lang_code):
     """Convert language code to google api supported language code
-    
+
     See https://cloud.google.com/translate/docs/languages
     """
     if android_lang_code == 'zh-rTW':
@@ -557,19 +557,19 @@ def make_other_lang_string_file(in_lang, out_lang, in_file_path, out_folder_path
 def main(argv):
     global debug
     parser = argparse.ArgumentParser(
-        description='This is a python module to automatically make string.xml file for different language for Android')
+        description='This is a python module to automatically make string.xml file for different languages for Android')
     parser.add_argument('-o', action="store", default='',
-                        help='Specify the absolute path of output folder')
+                        help='specify the absolute path of the output folder')
     parser.add_argument('-i', action="store",
-                        help='Specify the absolute path of input file')
+                        help='specify the absolute path of input file')
     parser.add_argument('-lang', action="store", default='',
-                        help='Specify the comma seperated langauges, ex: -lang \'en,it\'')
+                        help='specify the comma-separated languages, ex: -lang \'en,it\'')
     parser.add_argument('-f', action="store_true", default=False,
-                        help='Force to redo the translation of all the key values, default = False')
+                        help='force to redo the translation of all the key values, default = False')
     parser.add_argument('-p', action="store", dest='pool', default=5,
-                        type=int, help='Number of process pool to use, default = 5')
+                        type=int, help='set the number of process pool to use, default = 5')
     parser.add_argument('-v', action="store_true", dest='debug',
-                        default=False, help='Enable the debug logs')
+                        default=False, help='enable the debug logs')
 
     args = parser.parse_args(argv)
     debug = args.debug
