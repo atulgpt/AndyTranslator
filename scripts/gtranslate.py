@@ -180,6 +180,7 @@ import argparse
 import re
 from io import BytesIO
 import sys
+import traceback
 from lxml import etree as ET
 import os
 import requests
@@ -187,6 +188,9 @@ from fake_useragent import UserAgent
 import html
 import urllib.parse
 import copy
+
+import six
+from google.cloud import translate_v2 as google_translate_sdk
 
 debug = False
 
@@ -246,9 +250,7 @@ def parse_response(r, text):
     return translated_string
 
 
-# This subroutine calls Google translate and extracts the translation from
-# the html request
-def translate(to_translate, to_language="auto", language="auto", name='no-name'):
+def translate_handling_newlines(to_translate, to_language, language="auto", name='no-name'):
     array_to_translate = []
     # print(to_translate)
     if '\\n' in to_translate:
@@ -262,25 +264,102 @@ def translate(to_translate, to_language="auto", language="auto", name='no-name')
     for text in array_to_translate:
         print(f'text being translated(key = {name}) = {text}')
         if text.strip():
-            # send request
-            req_url = "https://translate.google.com/m?hl=%s&sl=%s&q=%s" % (
-                to_language, language, urllib.parse.quote(text))
-            log('\nrequest url = ' + req_url)
-
-            # Making fake user-agent
-            ua = UserAgent(use_cache_server=False,verify_ssl=False)
-            userAgent = ua.random
-            log(f'Randm userAgent = {userAgent}')
-            headers = {"User-Agent": userAgent}
-            cookies = {'GOOGLE_ABUSE_EXEMPTION': 'ID=196d8fb1efebf14e:TM=1601733587:C=r:IP=103.43.112.97-:S=APGng0vxwhbunwAPfP8XSWk9jHovjubUfQ'}
-            resp_array.append(requests.get(req_url, headers=headers, cookies=cookies))
+            # calling method for translation
+            translated_text = translate_text_from_google_api(
+                to_translate, to_language, language, name)
+            resp_array.append(translated_text)
         else:
             print(f'Text is empty')
             resp_array.append(None)
 
         text_array.append(text)
 
-    return '\\n'.join(map(parse_response, resp_array, text_array))
+    return '\\n'.join(resp_array)
+
+
+def perform_asserts_on_text(text):
+    assert isinstance(text, str)
+    assert text, f'Text(= {text}) is empty.'
+    assert '\\n' not in text, 'Should not contain newline character but at-least one is present for test = {text}'
+
+
+def translate_text_from_google_web(to_translate, to_language, language="auto", name='no-name'):
+    """This subroutine calls Google translate and extracts the translation from
+    the html request. This method is flaky
+    """
+
+    perform_asserts_on_text(to_translate)
+
+    # send request
+    req_url = "https://translate.google.com/m?hl=%s&sl=%s&q=%s" % (
+        to_language, language, urllib.parse.quote(to_translate))
+    log('\nrequest url = ' + req_url)
+
+    # Making fake user-agent
+    # ua = UserAgent(use_cache_server=False,verify_ssl=False)
+    # userAgent = ua.random
+    # log(f'Randm userAgent = {userAgent}')
+    # headers = {"User-Agent": userAgent}
+    # cookies = {'GOOGLE_ABUSE_EXEMPTION': 'ID=196d8fb1efebf14e:TM=1601733587:C=r:IP=103.43.112.97-:S=APGng0vxwhbunwAPfP8XSWk9jHovjubUfQ'}
+    # headers=headers, cookies=cookies
+
+    return parse_response(requests.get(req_url))
+
+
+def getIso639LangCode(android_lang_code):
+    """Convert language code to google api supported language code
+    
+    See https://cloud.google.com/translate/docs/languages
+    """
+    if android_lang_code == 'zh-rTW':
+        return 'zh-TW'
+    elif android_lang_code == 'zh-rCN':
+        return 'zh-CN'
+    elif android_lang_code == 'pt-rPT':
+        return 'pt'
+    else:
+        return android_lang_code
+
+
+def translate_text_from_google_api(to_translate, to_language, input_lang, name='no-name'):
+    """Translates text into the target language.
+
+    Target must be an ISO 639-1 language code.
+    See https://g.co/cloud/translate/v2/translate-reference#supported_languages
+    """
+
+    perform_asserts_on_text(to_translate)
+    log(
+        f'Resource value with name = {name}, going to call google api call and text = {to_translate} and to_language = {to_language}')
+
+    env_key_name = 'GOOGLE_APPLICATION_SERVICE_ACCOUNT_CREDENTIALS_FOR_TRANSLATION'
+    assert env_key_name in os.environ, f'{env_key_name} is not present in os environment variables. You may have to restart to your application if this variable is just added'
+
+    path_for_service_key_for_translation = os.environ[env_key_name]
+    log(
+        f'Returned env variable for service key path = {path_for_service_key_for_translation}')
+    assert path_for_service_key_for_translation.strip(
+    ), f'Environment path is not set for {env_key_name}'
+    assert os.path.exists(
+        path_for_service_key_for_translation), f'File doesn\'t exists for path {path_for_service_key_for_translation} which is set by {env_key_name}'
+
+    translate_client = google_translate_sdk.Client.from_service_account_json(
+        path_for_service_key_for_translation)
+    if isinstance(to_translate, six.binary_type):
+        log(f'Resource value with name = {name}, is not of type six.binary_type so decoding it')
+        to_translate = to_translate.decode("utf-8")
+        log(f'Resource value with name = {name}, new decoded value = {to_translate}')
+
+    # Text can also be a sequence of strings, in which case this method
+    # will return a sequence of results for each text.
+    iso_639_lang_code = getIso639LangCode(to_language)
+    log(f'Resource value with name = {name}, iso_639_lang_code = {iso_639_lang_code}')
+    result = translate_client.translate(
+        to_translate, target_language=iso_639_lang_code)
+    translated_text = result["translatedText"]
+    print(
+        f'Translation returned from Google service for name {name} = {translated_text} for input text = {result["input"]}, detected language = {result["detectedSourceLanguage"]}')
+    return translated_text
 
 
 #
@@ -311,35 +390,35 @@ def print_element(initial_text, translated_text, name):
 
 def translate_node(input_node, out_lang, in_lang, name):
     is_translatable = input_node.get('translatable') != 'false'
-
+    log(
+        f'translate_node is called and key = {name} is found to be translatable = {is_translatable}')
     # Translating the string tag
     if is_translatable:
         # Here you might want to replace root[i].text by the findall_content function
         # if you need to extract html tags
         # ~ totranslate="".join(findall_content(str(ET.tostring(root[i])),"string"))
         to_translate = input_node.text
-        if(to_translate != None):
-            try:
-                translation_result = translate(
-                    to_translate,
-                    out_lang,
-                    in_lang,
-                    name
-                )
-                print_element(to_translate, translation_result, name)
-                return translation_result
-            except Exception as e:
-                print(e)
-                return None
-        else:
-            raise ValueError
+        assert to_translate is not None, f'Input text is found to None for key = {name}'
+        try:
+            translation_result = translate_handling_newlines(
+                to_translate,
+                out_lang,
+                in_lang,
+                name
+            )
+            print_element(to_translate, translation_result, name)
+            return translation_result
+        except Exception as e:
+            traceback.print_exc()
+            print(
+                f'[ERROR] Key with name = {name} failed to be translated with error = {e}, for out_lang_code = {out_lang} and text = {to_translate}')
+            return None
     else:
         return None
 
 
 def get_previous_string(root, id):
-    if type(id) is not str:
-        raise ValueError
+    assert type(id) is str, f'In get_previous_string, id is found to be None'
     if root is None:
         return None
     answer_list = root.findall(f".//string[@name='{id}']")
@@ -350,10 +429,9 @@ def get_previous_string(root, id):
 
 
 def get_previous_string_item(tag, root, id, index):
-    if type(id) is not str:
-        raise ValueError
-    if root is None:
-        return None
+    assert type(
+        id) is str, f'In get_previous_string_item id is not string. id = ${id}'
+    assert root is not None, f'In get_previous_string_item root is None'
     answer_list = root.findall(f".//{tag}[@name='{id}']")
     if len(answer_list) == 0 or len(answer_list[0]) < index + 1:
         return None
@@ -363,7 +441,6 @@ def get_previous_string_item(tag, root, id, index):
             return previous_item_text
         else:
             return None
-
 
 
 def make_other_lang_string_file(in_lang, out_lang, in_file_path, out_folder_path, forced, debug_local):
@@ -404,7 +481,7 @@ def make_other_lang_string_file(in_lang, out_lang, in_file_path, out_folder_path
         # for each translatable string call the translation subroutine
         # and replace the string by its translation,
         # descend into each string array
-        log('\n\n')
+        log('\n')
 
         input_node = input_tree_root[i]
         input_node_working = input_tree_root_working[working_index]
@@ -415,24 +492,39 @@ def make_other_lang_string_file(in_lang, out_lang, in_file_path, out_folder_path
             continue
 
         name_attr = input_node.attrib['name']
-        print(f"{i} {input_node} and name = {name_attr}")
+        print(f"{i}: Resource value with name = {name_attr}, checking")
         # Translating the string tag
         if input_node.tag == 'string':
-            log("processing string")
+            print(f"{i}: Resource value with name = {name_attr}, found to be string")
 
             if not input_node.text.startswith("@string/"):
                 previous_translated_text = get_previous_string(
                     output_tree_root, name_attr)
                 if previous_translated_text is None:
+                    log(
+                        f"{i}: Resource value with name = {name_attr}, previous translation not found")
                     translated_result = translate_node(
                         input_node, out_lang, in_lang, name_attr)
                     if translated_result is not None:
+                        print(
+                            f"{i}: Resource value with name = {name_attr}, we are able to complete the translation and result is = {translated_result}")
                         input_node_working.text = translated_result
                     else:
+                        if input_node.get('translatable') == 'true':
+                            # Only logging when translatable is true o/w for false value is expected
+                            log(
+                                f"{i}: [ERROR] Resource value with name = {name_attr}, we are NOT able to complete the translation")
                         input_tree_root_working.remove(input_node_working)
                         working_index = working_index - 1
                 else:
+                    print(
+                        f"{i}: Resource value with name = {name_attr}, skipped as previous translation(= {previous_translated_text}) was found")
                     input_node_working.text = previous_translated_text
+            else:
+                print(
+                    f"{i}: Resource value with name = {name_attr}, skipped as it is @string/* type value")
+        else:
+            print(f"{i}: Resource value with name = {name_attr}, skipped as it is not string may be handled in string-array or plurals")
 
         # Translating the string-array tag
         if(input_node.tag == 'string-array' or input_node.tag == "plurals"):
@@ -442,19 +534,19 @@ def make_other_lang_string_file(in_lang, out_lang, in_file_path, out_folder_path
                 # for each translatable string call the translation subroutine
                 # and replace the string by its translation,
 
-                if(input_node[j].tag == 'item'):
-                    if not input_node[j].text.startswith("@string/"):
-                        previous_string = get_previous_string_item(
-                            input_node.tag, output_tree_root, name_attr, j)
-                        if previous_string is not None:
-                            input_node_working[j].text = previous_string
-                        else:
-                            input_node_working[j].text = translate_node(
-                                input_node[j], out_lang, in_lang, input_node.attrib['name'])
-                else:
-                    raise ValueError
+                assert input_node[j].tag == 'item', f'For {j} index of the type = {input_node.tag} is not item'
+                if not input_node[j].text.startswith("@string/"):
+                    previous_string = get_previous_string_item(
+                        input_node.tag, output_tree_root, name_attr, j)
+                    if previous_string is not None:
+                        input_node_working[j].text = previous_string
+                    else:
+                        input_node_working[j].text = translate_node(
+                            input_node[j], out_lang, in_lang, input_node.attrib['name'])
+
         working_index = working_index + 1
-        print('------------\n')
+        log(
+            f"{i}: Resource value with name = {name_attr}, end processing for this node")
 
     # write new xml file
     print(f'Writing to fileName = {out_file_path}')
@@ -501,7 +593,6 @@ def main(argv):
         parser.print_help(sys.stderr)
         sys.exit()
 
-
     if not args.o.strip():
         args.o = os.path.join(os.path.dirname(args.i), 'output')
         make_folder(args.o)
@@ -509,7 +600,7 @@ def main(argv):
 
     with Pool(args.pool) as p:
         array_lang = str(args.lang).split(',')
-        array_lang_striped =  list(map(lambda it: it.strip(), array_lang))
+        array_lang_striped = list(map(lambda it: it.strip(), array_lang))
         log(array_lang_striped)
         arg_map = map(lambda it: ('en', it, args.i,
                                   args.o, args.f, debug), array_lang_striped)
