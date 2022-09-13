@@ -190,6 +190,7 @@ import urllib.parse
 import copy
 
 import six
+# install google-cloud-translate
 from google.cloud import translate_v2 as google_translate_sdk
 
 debug = False

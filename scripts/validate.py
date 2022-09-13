@@ -32,7 +32,7 @@ def log(msg):
 
 # import libraries
 
-def isTranslable(node):
+def isTranslatable(node):
     return node.get('translatable') != 'false'
 
 def get_previous_string(root, id):
@@ -42,7 +42,7 @@ def get_previous_string(root, id):
         raise ValueError('Root is None')
     answer_list = root.findall(f".//string[@name='{id}']")
     if len(answer_list) == 0:
-        raise ValueError('Result is empty')
+        raise ValueError(f'Couldn\'t find string with {id}')
     else:
         return answer_list[0].text
 
@@ -137,7 +137,7 @@ def validate_files(in_lang, out_lang, in_file_path, out_folder_path, debug_local
         if input_node.tag == 'string':
             if not input_node.text:
                 raise ValueError(f'String with name {name_attr} is empty in en language')
-            if (not input_node.text.startswith('@string/')) and isTranslable(input_node):
+            if (not input_node.text.startswith('@string/')) and isTranslatable(input_node):
                 previous_translated_text = get_previous_string(
                     output_tree_root, name_attr)
 
@@ -160,7 +160,7 @@ def validate_files(in_lang, out_lang, in_file_path, out_folder_path, debug_local
                 # and replace the string by its translation,
 
                 if(input_node[j].tag == 'item'):
-                    if not input_node[j].text.startswith('@string/') and isTranslable(input_node[j]):
+                    if not input_node[j].text.startswith('@string/') and isTranslatable(input_node[j]):
                         previous_string = get_previous_string_item(
                             input_node.tag, output_tree_root, name_attr, j)
                         
