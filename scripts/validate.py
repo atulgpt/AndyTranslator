@@ -273,7 +273,10 @@ def main(argv):
         description="This is a python module to verify the same number of positional arguments, missing translation, warning characters(e.g., &, ..., -, --) and wrong xml escaping"
     )
     parser.add_argument(
-        "-o", action="store", default="", help="specify the absolute output folder path"
+        "-o",
+        action="store",
+        default="",
+        help="specify the absolute path of the output folder. Default absolute path will be parent folder of the folder containing the strings.xml file",
     )
     parser.add_argument(
         "-i", action="store", help="specify the absolute input file path"
@@ -282,7 +285,7 @@ def main(argv):
         "-lang",
         action="store",
         default="",
-        help="specify the comma seperated langauges",
+        help="specify the comma separated languages",
     )
     parser.add_argument(
         "-p",
@@ -305,7 +308,7 @@ def main(argv):
     log("Debug logs are enabled. Be prepared to bombarded by the terminal logs")
 
     if args.lang == "":
-        print("No langauge specified exiting the program\n")
+        print("No language specified exiting the program\n")
         parser.print_help(sys.stderr)
         sys.exit()
 
@@ -320,9 +323,10 @@ def main(argv):
         sys.exit()
 
     if not args.o.strip():
-        print(f"Output folder path not provided! So exiting the program\n")
-        parser.print_help(sys.stderr)
-        sys.exit()
+        grand_parent_folder = os.path.dirname(os.path.dirname(args.i))
+        args.o = grand_parent_folder
+        log(f"Directory path of provided input file {grand_parent_folder}")
+        print(f"Output folder path not provided! Using output path = {args.o}")
 
     with Pool(args.pool) as p:
         array_lang = str(args.lang).split(",")
