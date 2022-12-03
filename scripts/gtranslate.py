@@ -456,7 +456,8 @@ def get_previous_string(root, id):
 
 def get_previous_string_item(tag, root, id, index):
     assert type(id) is str, f"In get_previous_string_item id is not string. id = ${id}"
-    assert root is not None, f"In get_previous_string_item root is None"
+    if root is None:
+        return None
     answer_list = root.findall(f".//{tag}[@name='{id}']")
     if len(answer_list) == 0 or len(answer_list[0]) < index + 1:
         return None
@@ -468,26 +469,54 @@ def get_previous_string_item(tag, root, id, index):
             return None
 
 
+def log_reason_for_translation_req(
+    index, previous_translated_text, input_string_id, input_text, file_identifier
+):
+    if previous_translated_text is None:
+        log(
+            f"{index}: Not skipping translation for {input_string_id} as in values-{file_identifier}/strings.xml, previous translation not found"
+        )
+    elif previous_translated_text == input_text:
+        log(
+            f"{index}: Not skipping translation for {input_string_id} as previous translated text(={previous_translated_text}) present at values-{file_identifier}/strings.xml is exactly same, so it must be copy of english text"
+        )
+
+
+def should_translate(previous_translation, input_text):
+    return previous_translation is None or previous_translation == input_text
+
+
 def make_other_lang_string_file(
-    in_lang, out_lang, in_file_path, out_folder_path, forced, debug_local
+    in_lang,
+    out_lang_folder_prefix_pair,
+    in_file_path,
+    out_folder_path,
+    forced,
+    debug_local,
 ):
     global debug
     debug = debug_local
+    out_lang_code = out_lang_folder_prefix_pair[0]
+    folder_suffix = out_lang_folder_prefix_pair[1]
     # create outfile name by appending the language code to the input file name
     # print('in_lang = {0}, out_lang = {1}, in_file_path = {2} and out_folder_path = {3}'.format(in_lang, out_lang, in_file_path, out_folder_path))
-    name, ext = os.path.splitext(in_file_path)
-    head, tail = os.path.split(in_file_path)
-    out_file_path = os.path.join(out_folder_path, f"values-{out_lang}", tail)
-
-    print(f"\n\nMaking values-{out_lang} folder at {out_file_path}")
-    print(
-        f"Making values-{out_lang} folder creation result = {make_folder(os.path.dirname(out_file_path))}"
+    _, tail = os.path.split(in_file_path)
+    out_file_path = os.path.join(
+        out_folder_path,
+        f"values-{folder_suffix}",
+        tail,
     )
+
+    print(f"\n\nMaking values-{folder_suffix} folder at {out_file_path}")
+    print(f"Trying to Making values-{folder_suffix}")
+    if make_folder(os.path.dirname(out_file_path)):
+        f"Successfully created folder at {out_file_path}"
+    else:
+        f"Folder was already present at {out_file_path}"
     print("\n")
 
     # read xml structure
     print(f"Input string file name = {in_file_path}\n")
-    parser = ET.XMLParser(remove_comments=False)
     input_tree = ET.parse(in_file_path)
     input_tree_root = input_tree.getroot()
     input_tree_working = copy.deepcopy(input_tree)
@@ -495,13 +524,13 @@ def make_other_lang_string_file(
 
     # trying to read output xml if that exists
     if os.path.exists(out_file_path):
-        log(f"File path values-{out_lang} does contain the strings.xml")
+        log(f"File path values-{folder_suffix} does contain the strings.xml")
         output_tree = ET.parse(out_file_path)
         output_tree_root = output_tree.getroot()
     else:
         output_tree = None
         output_tree_root = None
-        log(f"File path values-{out_lang} doesn't contain the strings.xml")
+        log(f"File path values-{folder_suffix} doesn't contain the strings.xml")
 
     # cycle through elements
     working_index = 0
@@ -512,55 +541,62 @@ def make_other_lang_string_file(
         log("\n")
 
         input_node = input_tree_root[i]
-        input_node_working = input_tree_root_working[working_index]
+        output_node = input_tree_root_working[working_index]
 
         # If comment then continue
         if not isinstance(input_node.tag, str):
             working_index = working_index + 1
             continue
 
-        name_attr = input_node.attrib["name"]
-        print(f"{i}: Resource value with name = {name_attr}, checking")
+        string_id = input_node.attrib["name"]
+        print(f"{i}: Resource value with name = {string_id}, checking")
         # Translating the string tag
         if input_node.tag == "string":
-            print(f"{i}: Resource value with name = {name_attr}, found to be string")
+            print(f"{i}: Resource value with id = {string_id}, found to be string")
 
             if not input_node.text.startswith("@string/"):
                 previous_translated_text = get_previous_string(
-                    output_tree_root, name_attr
+                    output_tree_root, string_id
                 )
-                if previous_translated_text is None:
-                    log(
-                        f"{i}: Resource value with name = {name_attr}, previous translation not found"
+                if should_translate(
+                    previous_translation=previous_translated_text,
+                    input_text=input_node.text,
+                ):
+                    log_reason_for_translation_req(
+                        i,
+                        previous_translated_text,
+                        input_string_id=string_id,
+                        input_text=input_node.text,
+                        file_identifier=folder_suffix,
                     )
                     translated_result = translate_node(
-                        input_node, out_lang, in_lang, name_attr
+                        input_node, out_lang_code, in_lang, string_id
                     )
                     if translated_result is not None:
                         print(
-                            f"{i}: Resource value with name = {name_attr}, we are able to complete the translation and result is = {translated_result}"
+                            f"{i}: Resource value with name = {string_id}, we are able to complete the translation and result is = {translated_result}"
                         )
-                        input_node_working.text = translated_result
+                        output_node.text = translated_result
                     else:
                         if input_node.get("translatable") == "true":
                             # Only logging when translatable is true o/w for false value is expected
                             log(
-                                f"{i}: [ERROR] Resource value with name = {name_attr}, we are NOT able to complete the translation"
+                                f"{i}: [ERROR] Resource value with name = {string_id}, we are NOT able to complete the translation"
                             )
-                        input_tree_root_working.remove(input_node_working)
+                        input_tree_root_working.remove(output_node)
                         working_index = working_index - 1
                 else:
                     print(
-                        f"{i}: Resource value with name = {name_attr}, skipped as previous translation(= {previous_translated_text}) was found"
+                        f"{i}: Resource value with name = {string_id}, skipped as previous translation(= {previous_translated_text}) was found"
                     )
-                    input_node_working.text = previous_translated_text
+                    output_node.text = previous_translated_text
             else:
                 print(
-                    f"{i}: Resource value with name = {name_attr}, skipped as it is @string/* type value"
+                    f"{i}: Resource value with name = {string_id}, skipped as it is @string/* type value"
                 )
         else:
             print(
-                f"{i}: Resource value with name = {name_attr}, skipped as it is not string may be handled in string-array or plurals"
+                f"{i}: Resource value with name = {string_id}, skipped as it is not string may be handled in string-array or plurals"
             )
 
         # Translating the string-array tag
@@ -576,18 +612,31 @@ def make_other_lang_string_file(
                 ), f"For {j} index of the type = {input_node.tag} is not item"
                 if not input_node[j].text.startswith("@string/"):
                     previous_string = get_previous_string_item(
-                        input_node.tag, output_tree_root, name_attr, j
+                        input_node.tag, output_tree_root, string_id, j
                     )
-                    if previous_string is not None:
-                        input_node_working[j].text = previous_string
-                    else:
-                        input_node_working[j].text = translate_node(
-                            input_node[j], out_lang, in_lang, input_node.attrib["name"]
+                    if should_translate(
+                        previous_translation=previous_string,
+                        input_text=input_node[j].text,
+                    ):
+                        log_reason_for_translation_req(
+                            index=i,
+                            file_identifier=folder_suffix,
+                            input_string_id=string_id,
+                            input_text=input_node[j].text,
+                            previous_translated_text=previous_string,
                         )
+                        output_node[j].text = translate_node(
+                            input_node[j],
+                            out_lang_code,
+                            in_lang,
+                            input_node.attrib["name"],
+                        )
+                    else:
+                        output_node[j].text = previous_string
 
         working_index = working_index + 1
         log(
-            f"{i}: Resource value with name = {name_attr}, end processing for this node"
+            f"{i}: Resource value with name = {string_id}, end processing for this node"
         )
 
     # write new xml file
@@ -604,7 +653,7 @@ def main(argv):
         "-o",
         action="store",
         default="",
-        help="specify the absolute path of the output folder",
+        help="specify the absolute path of the output folder. Default absolute path will be parent folder of the folder containing the strings.xml file",
     )
     parser.add_argument(
         "-i", action="store", help="specify the absolute path of input file"
@@ -645,7 +694,7 @@ def main(argv):
     print(f"Current script running path = {os.getcwd()}")
 
     if args.lang == "":
-        print("No langauge specified exiting the program\n")
+        print("No language specified exiting the program\n")
         parser.print_help(sys.stderr)
         sys.exit()
 
@@ -660,16 +709,21 @@ def main(argv):
         sys.exit()
 
     if not args.o.strip():
-        args.o = os.path.join(os.path.dirname(args.i), "output")
+        grand_parent_folder = os.path.dirname(os.path.dirname(args.i))
+        args.o = grand_parent_folder
+        log(f"Directory path of provided input file {grand_parent_folder}")
         make_folder(args.o)
         print(f"Output folder path not provided! Using output path = {args.o}")
 
     with Pool(args.pool) as p:
         array_lang = str(args.lang).split(",")
-        array_lang_striped = list(map(lambda it: it.strip(), array_lang))
-        log(array_lang_striped)
+        array_lang_folder_prefix_pair = list(
+            map(lambda it: (it.strip().split("-")[0], it.strip()), array_lang)
+        )
+        log(f"languages provided for translation = {array_lang_folder_prefix_pair}")
         arg_map = map(
-            lambda it: ("en", it, args.i, args.o, args.f, debug), array_lang_striped
+            lambda it: ("en", it, args.i, args.o, args.f, debug),
+            array_lang_folder_prefix_pair,
         )
         p.starmap(make_other_lang_string_file, arg_map)
 
