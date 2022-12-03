@@ -178,18 +178,16 @@ from multiprocessing import Pool
 import shutil
 import argparse
 import re
-from io import BytesIO
 import sys
 import traceback
 from lxml import etree as ET
 import os
 import requests
-from fake_useragent import UserAgent
 import html
 import urllib.parse
 import copy
-
 import six
+import core.fileutils as string_fileutils
 
 # install google-cloud-translate
 from google.cloud import translate_v2 as google_translate_sdk
@@ -662,7 +660,7 @@ def main(argv):
         "-lang",
         action="store",
         default="",
-        help="specify the comma-separated languages, ex: -lang 'en,it'",
+        help="specify the comma-separated languages, ex: -lang 'en,it'. In case no value is provided, will calculate the applicable values from all the values folder and proceed if that is not empty",
     )
     parser.add_argument(
         "-f",
@@ -693,11 +691,6 @@ def main(argv):
     log("\nDebug logs are enabled. Be prepared to bombarded by the terminal logs\n")
     print(f"Current script running path = {os.getcwd()}")
 
-    if args.lang == "":
-        print("No language specified exiting the program\n")
-        parser.print_help(sys.stderr)
-        sys.exit()
-
     if not os.path.exists(args.i):
         print(f"Input path({args.i}) doesn't exists so exiting the program\n")
         parser.print_help(sys.stderr)
@@ -714,6 +707,18 @@ def main(argv):
         log(f"Directory path of provided input file {grand_parent_folder}")
         make_folder(args.o)
         print(f"Output folder path not provided! Using output path = {args.o}")
+
+    if args.lang == "":
+        derived_lang = string_fileutils.get_lang_codes_from_values_folders(args.o)
+        if len(derived_lang) == 0:
+            print(
+                f"Couldn't find any lang code to process and none is given in the argument"
+            )
+            parser.print_help(sys.stderr)
+            sys.exit()
+        else:
+            args.lang = derived_lang
+            print(f"No lang codes is given so calculated {args.lang} to process")
 
     with Pool(args.pool) as p:
         array_lang = str(args.lang).split(",")

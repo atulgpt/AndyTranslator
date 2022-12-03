@@ -11,6 +11,7 @@ import sys
 from lxml import etree as ET
 import os
 from xml.sax.saxutils import escape
+import core.fileutils as string_fileutils
 
 format_regex = re.compile(
     r"(?:%(?:\d+\$)?s|%(?:\d+\$)?d)"
@@ -285,7 +286,7 @@ def main(argv):
         "-lang",
         action="store",
         default="",
-        help="specify the comma separated languages",
+        help="specify the comma-separated languages, ex: -lang 'en,it'. In case no value is provided, will calculate the applicable values from all the values folder and proceed if that is not empty",
     )
     parser.add_argument(
         "-p",
@@ -307,11 +308,6 @@ def main(argv):
     debug = args.debug
     log("Debug logs are enabled. Be prepared to bombarded by the terminal logs")
 
-    if args.lang == "":
-        print("No language specified exiting the program\n")
-        parser.print_help(sys.stderr)
-        sys.exit()
-
     if not os.path.exists(args.i):
         print(f"Input path({args.i}) doesn't exists so exiting the program\n")
         parser.print_help(sys.stderr)
@@ -327,6 +323,18 @@ def main(argv):
         args.o = grand_parent_folder
         log(f"Directory path of provided input file {grand_parent_folder}")
         print(f"Output folder path not provided! Using output path = {args.o}")
+
+    if args.lang == "":
+        derived_lang = string_fileutils.get_lang_codes_from_values_folders(args.o)
+        if len(derived_lang) == 0:
+            print(
+                f"Couldn't find any lang code to process and none is given in the argument"
+            )
+            parser.print_help(sys.stderr)
+            sys.exit()
+        else:
+            args.lang = derived_lang
+            print(f"No lang codes is given so calculated {args.lang} to process")
 
     with Pool(args.pool) as p:
         array_lang = str(args.lang).split(",")
