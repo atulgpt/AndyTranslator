@@ -41,14 +41,14 @@ def isTranslatable(node):
     return node.get("translatable") != "false"
 
 
-def get_previous_string(root, id):
+def get_previous_string(root, out_lang_code, id):
     if type(id) is not str:
         raise ValueError
     if root is None:
         raise ValueError("Root is None")
     answer_list = root.findall(f".//string[@name='{id}']")
     if len(answer_list) == 0:
-        raise ValueError(f"Couldn't find string with {id}")
+        raise ValueError(f"Couldn't find string with {id} for values-{out_lang_code}")
     else:
         return answer_list[0].text
 
@@ -73,6 +73,8 @@ def match(
     translated_text,
     original_text,
 ):
+    if not original_text:
+        return (name, lang, "English string is empty")
     if not translated_text:
         # Case when translated string is empty
         return (name, lang, "String is empty")
@@ -134,8 +136,7 @@ def validate_files(in_lang, out_lang, in_file_path, out_folder_path, debug_local
     debug = debug_local
     # create outfile name by appending the language code to the input file name
     # print('in_lang = {0}, out_lang = {1}, in_file_path = {2} and out_folder_path = {3}'.format(in_lang, out_lang, in_file_path, out_folder_path))
-    name, ext = os.path.splitext(in_file_path)
-    head, tail = os.path.split(in_file_path)
+    _, tail = os.path.split(in_file_path)
     out_file_path = os.path.join(out_folder_path, f"values-{out_lang}", tail)
 
     if not os.path.exists(out_file_path):
@@ -143,7 +144,6 @@ def validate_files(in_lang, out_lang, in_file_path, out_folder_path, debug_local
 
     # read xml structure
     log(f"File name = {in_file_path}")
-    parser = ET.XMLParser(remove_comments=True)
     input_tree = ET.parse(in_file_path)
     input_tree_root = input_tree.getroot()
 
@@ -171,14 +171,22 @@ def validate_files(in_lang, out_lang, in_file_path, out_folder_path, debug_local
         # Translating the string tag
         if input_node.tag == "string":
             if not input_node.text:
-                raise ValueError(
-                    f"String with name {name_attr} is empty in en language"
+                ans.append(
+                    match(
+                        translated_matches,
+                        english_matches,
+                        name_attr,
+                        out_lang,
+                        previous_translated_text,
+                        input_node.text,
+                    )
                 )
+                continue
             if (not input_node.text.startswith("@string/")) and isTranslatable(
                 input_node
             ):
                 previous_translated_text = get_previous_string(
-                    output_tree_root, name_attr
+                    output_tree_root, out_lang, name_attr,
                 )
 
                 log(
@@ -339,6 +347,7 @@ def main(argv):
     with Pool(args.pool) as p:
         array_lang = str(args.lang).split(",")
         array_lang_striped = list(map(lambda it: it.strip(), array_lang))
+        log(f"languages provided for translation = {array_lang_striped}")
         arg_map = map(lambda it: ("en", it, args.i, args.o, debug), array_lang_striped)
         answers = p.starmap(validate_files, arg_map)
         flatten_ans = flatten(answers)
