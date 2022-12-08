@@ -1,6 +1,4 @@
 {
-    "python.formatting.provider": "black",
-    "cSpell.words": [
-        "fileutils"
-    ]
+  "python.formatting.provider": "black",
+  "cSpell.words": ["fileutils"]
 }
