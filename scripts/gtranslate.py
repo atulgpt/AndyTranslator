@@ -654,7 +654,10 @@ def main(argv):
         help="specify the absolute path of the output folder. Default absolute path will be parent folder of the folder containing the strings.xml file",
     )
     parser.add_argument(
-        "-i", action="store", help="specify the absolute path of input file"
+        "-i",
+        action="store",
+        help="specify the absolute path of input file",
+        required=True,
     )
     parser.add_argument(
         "-lang",
@@ -681,7 +684,7 @@ def main(argv):
         action="store_true",
         dest="debug",
         default=False,
-        help="enable the debug logs",
+        help="enable the debug logs, default = False",
     )
 
     args = parser.parse_args(argv)
